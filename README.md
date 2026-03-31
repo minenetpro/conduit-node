@@ -17,8 +17,9 @@ sudo apt install -y ca-certificates curl git unzip
 curl -fsSL https://bun.com/install | bash
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+sudo install -m 0755 "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
 
-bun --version
+/usr/local/bin/bun --version
 ```
 
 ### Install Docker Engine
@@ -50,12 +51,12 @@ sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-### Clone the repo and install dependencies
+### Clone the repo into `/opt` and install dependencies
 
 ```bash
-git clone https://github.com/minenetpro/conduit-node.git
-cd conduit-node
-bun install
+sudo git clone https://github.com/minenetpro/conduit-node.git /opt/conduit-node
+cd /opt/conduit-node
+sudo /usr/local/bin/bun install --frozen-lockfile
 ```
 
 ## Required environment
@@ -68,22 +69,54 @@ bun install
 
 Optional:
 
+- `CONDUIT_HOSTNAME` defaults to the host hostname
 - `CONDUIT_STATE_DIR` defaults to `/var/lib/conduit-node`
 - `CONDUIT_HEARTBEAT_SECONDS` defaults to `15`
 - `CONDUIT_JOB_POLL_SECONDS` defaults to `10`
 - `CONDUIT_NODE_VERSION` defaults to `0.1.0`
 
+### Create `/etc/conduit-node.env`
+
+The `systemd` units read configuration from `/etc/conduit-node.env`.
+
+```bash
+cd /opt/conduit-node
+sudo install -m 0600 .env.example /etc/conduit-node.env
+sudoedit /etc/conduit-node.env
+```
+
 ## Runtime contract
 
 - Persists `nodeId` and `agentToken` under `CONDUIT_STATE_DIR`.
+- Persists active Reserved IP leases under `CONDUIT_STATE_DIR/reserved-ips.json`.
 - Polls the controller for work.
 - Writes FRPS config files under `CONDUIT_STATE_DIR/frps`.
 - Runs FRPS containers with Docker host networking and labels them as Conduit-managed.
+- Replays active Reserved IP aliases before Docker starts so FRPS survives host reboots.
 
-## Start
+## systemd
+
+Install both service units so Reserved IP aliases are restored before Docker
+restarts FRPS containers:
 
 ```bash
-bun run start
+cd /opt/conduit-node
+sudo install -m 0644 systemd/conduit-node-network.service /etc/systemd/system/conduit-node-network.service
+sudo install -m 0644 systemd/conduit-node.service /etc/systemd/system/conduit-node.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now conduit-node-network.service conduit-node.service
+```
+
+For existing nodes, restart `conduit-node.service` once after deploying this
+version so it can seed `reserved-ips.json` from any FRPS containers that are
+already running before the next host reboot.
+
+## Service management
+
+```bash
+sudo systemctl status conduit-node.service
+sudo journalctl -u conduit-node.service -f
+sudo systemctl restart conduit-node.service
 ```
 
 ## Vultr regions

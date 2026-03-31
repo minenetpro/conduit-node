@@ -1,0 +1,15 @@
+[Unit]
+Description=Conduit reserved IP bootstrap
+After=network-online.target
+Wants=network-online.target
+Before=docker.service conduit-node.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/conduit-node
+EnvironmentFile=/etc/conduit-node.env
+ExecStart=/usr/local/bin/bun /opt/conduit-node/src/index.ts sync-network
+
+[Install]
+WantedBy=multi-user.target
+RequiredBy=docker.service

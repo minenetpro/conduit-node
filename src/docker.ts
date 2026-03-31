@@ -59,6 +59,44 @@ export const countManagedContainers = async () => {
   return result.stdout.split("\n").filter(Boolean).length;
 };
 
+export const listManagedFrpsContainers = async () => {
+  const result = await runCommand(
+    [
+      "docker",
+      "ps",
+      "--filter",
+      "label=io.conduit.managed=true",
+      "--format",
+      '{{.Names}}\t{{.Label "io.conduit.frps_id"}}',
+    ],
+    true,
+  );
+
+  if (result.exitCode !== 0 || !result.stdout) {
+    return [];
+  }
+
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [containerName, frpsId] = line.split("\t");
+      return {
+        containerName,
+        frpsId,
+      };
+    })
+    .filter(
+      (
+        container,
+      ): container is {
+        containerName: string;
+        frpsId: string;
+      } => Boolean(container.containerName) && Boolean(container.frpsId),
+    );
+};
+
 export const stopContainer = async (containerName: string) => {
   await runCommand(["docker", "stop", containerName], true);
 };

@@ -1,7 +1,7 @@
 [Unit]
 Description=Conduit edge agent
-After=network-online.target docker.service
-Wants=network-online.target
+After=network-online.target conduit-node-network.service docker.service
+Wants=network-online.target conduit-node-network.service
 
 [Service]
 Type=simple

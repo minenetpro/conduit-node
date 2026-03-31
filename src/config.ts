@@ -21,6 +21,7 @@ export type AgentConfig = {
   stateDir: string;
   stateFile: string;
   frpsConfigDir: string;
+  reservedIpStateFile: string;
   heartbeatSeconds: number;
   jobPollSeconds: number;
   agentVersion: string;
@@ -39,6 +40,7 @@ export const loadConfig = (): AgentConfig => {
     stateDir,
     stateFile: path.join(stateDir, "node-state.json"),
     frpsConfigDir: path.join(stateDir, "frps"),
+    reservedIpStateFile: path.join(stateDir, "reserved-ips.json"),
     heartbeatSeconds: Number(env.CONDUIT_HEARTBEAT_SECONDS ?? "15"),
     jobPollSeconds: Number(env.CONDUIT_JOB_POLL_SECONDS ?? "10"),
     agentVersion: env.CONDUIT_NODE_VERSION ?? "0.1.0",

@@ -4,6 +4,20 @@ export type NodeState = {
   registeredAt: number;
 };
 
+export type ReservedIpLeaseStatus = "pending" | "active" | "deleting";
+
+export type ReservedIpLease = {
+  frpsId: string;
+  address: string;
+  status: ReservedIpLeaseStatus;
+  updatedAt: number;
+};
+
+export type ReservedIpState = {
+  version: 1;
+  leases: ReservedIpLease[];
+};
+
 export type AgentJobPayload = {
   frpsId: string;
   name: string;
