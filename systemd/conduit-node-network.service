@@ -12,4 +12,4 @@ ExecStart=/usr/local/bin/bun /opt/conduit-node/src/index.ts sync-network
 
 [Install]
 WantedBy=multi-user.target
-RequiredBy=docker.service
+WantedBy=docker.service

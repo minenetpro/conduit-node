@@ -2,7 +2,7 @@ import { connect } from "node:net";
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentConfig } from "./config";
-import { probeContainerRunning, removeContainer, runFrpsContainer, stopContainer } from "./docker";
+import { probeContainerRunning, removeContainer, runCommand, runFrpsContainer, stopContainer } from "./docker";
 import { ensureReservedIpOnHost, removeReservedIpFromHost } from "./network";
 import { getReservedIpLease, removeReservedIpLease, upsertReservedIpLease } from "./state";
 import type { AgentJob, JobCompletion } from "./types";
@@ -25,6 +25,21 @@ export const renderFrpsConfig = (job: AgentJob) => {
 
 const configPathForJob = (config: AgentConfig, job: AgentJob) =>
   path.join(config.frpsConfigDir, `${job.payload.frpsId}.toml`);
+
+const waitForReservedIp = async (address: string, timeoutMs = 60_000) => {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await runCommand(["ip", "-4", "-o", "addr", "show"], true);
+    if (result.stdout.includes(`${address}/`)) {
+      return;
+    }
+
+    await Bun.sleep(1_500);
+  }
+
+  throw new Error(`Reserved IP ${address} did not appear on the host.`);
+};
 
 const probeTcp = async (host: string, port: number, timeoutMs = 5_000) =>
   await new Promise<void>((resolve, reject) => {
@@ -66,8 +81,12 @@ const startLikeProvision = async (
   }
 
   try {
-    const aliasResult = await ensureReservedIpOnHost(job.payload.reservedIp);
-    addedAlias = aliasResult.added;
+    if (isProvisioning) {
+      await waitForReservedIp(job.payload.reservedIp);
+    } else {
+      const aliasResult = await ensureReservedIpOnHost(job.payload.reservedIp);
+      addedAlias = aliasResult.added;
+    }
 
     await writeFile(configPath, renderFrpsConfig(job));
 
@@ -104,7 +123,6 @@ const startLikeProvision = async (
 
     if (isProvisioning) {
       await removeReservedIpLease(config, job.payload.frpsId).catch(() => null);
-      await removeReservedIpFromHost(job.payload.reservedIp).catch(() => null);
       await rm(configPath, { force: true }).catch(() => null);
     } else if (!priorLease) {
       await removeReservedIpLease(config, job.payload.frpsId).catch(() => null);
@@ -137,12 +155,12 @@ export const executeJob = async (
           containerName: job.payload.containerName,
         };
       case "delete_frps":
+        await removeContainer(job.payload.containerName);
         await upsertReservedIpLease(config, {
           frpsId: job.payload.frpsId,
           address: job.payload.reservedIp,
           status: "deleting",
         });
-        await removeContainer(job.payload.containerName);
         await removeReservedIpFromHost(job.payload.reservedIp);
         await rm(configPathForJob(config, job), { force: true });
         await removeReservedIpLease(config, job.payload.frpsId);
